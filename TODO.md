@@ -1,0 +1,2 @@
+- data structure to use to display stuff on screen
+- use half block to double pixels and squarify aspect ratio
