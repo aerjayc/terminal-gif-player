@@ -1,17 +1,25 @@
 #include <ncurses.h>
 #include <stdlib.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 /* TODO:
- *	- error handling
- *	- create image data structure
+ *	- resize image before showing
+ *	- allow scrolling
+ *	- show image on command line (i.e. don't clear terminal)
  *	- use half block to double vertical resolution
  *	- better palette handling
- *	- handle resizing
+ *		- if rgb_value already in palette, use index
+ *	- error handling
+ *	- more efficient image importing?
+ *	- ~~create image data structure~~
  */
 
-int print_image(uint8_t ***image, short height, short width);
+int print_image(uint8_t *image, int height, int width);
 
-int main()
+
+int main(int argc, char *argv[])
 {
 	// ncurses initialization
 	WINDOW *scr = initscr();
@@ -25,73 +33,45 @@ int main()
 	clear();	// clean screen, cursor to (0,0)
 	start_color();
 
-	int i, j;
+	int width, height, channels;
+	uint8_t *image = stbi_load(argv[1], &width, &height, &channels, 3);
+	print_image(image, width, height);	//, channels);
 
-	// create 3d-array
-	//uint8_t image[10][10][3];
-	uint8_t ***image = calloc(10, sizeof(uint8_t **));
-	if(image == NULL) {
-		endwin();
-		printf("Error: calloc() returned NULL. Exiting...\n");
-		exit(1);
-	}
-
-	for(i = 0; i < 10; i++) {
-		image[i] = calloc(10, sizeof(uint8_t *));
-		for(j = 0; j < 10; j++) {
-			image[i][j] = calloc(3, sizeof(uint8_t));
-		}
-	}
-
-	// generate image
-	for(i = 0; i < 10; i++) {
-		for(j = 0; j < 10; j++) {
-			image[i][j][0] = 159;
-			image[i][j][1] = 222;
-			image[i][j][2] = 42;
-		}
-	}
-
-	print_image(image, 10, 10);
 	refresh();
 	getch();
 	endwin();
+	printf("LINES = %i\tCOLS = %i\n", LINES, COLS);
 
-	//destroy image
-	for(i = 0; i < 10; i++) {
-		for(j = 0; j < 10; j++)
-			free(image[i][j]);
-		free(image[i]);
-	}
-	free(image);
+	stbi_image_free(image);
 
 	return 0;
 }
 
 
-int print_image(uint8_t ***image, short height, short width) {
+int print_image(uint8_t *image, int height, int width) {
 	/* Iterate over `image`,
 	 *	image = 2d array (of size LINESxCOLS) of uint8_t triples
 	 * Create color palette as you go through the pixels
 	 * Go through two rows at a time using half block elements
 	 */
 
-	unsigned int i, j, rgb_value, pair_index;
-	for(i = 0, pair_index = 1; i < height; i++) {
+	unsigned int i, j, rgb_value, pixel_index;
+	for(i = 0, pixel_index = 1; (i < LINES) && (i < height); i++) {
 		move(i, 0);	// go back to 1st column
-		for(j = 0; j < width; j++, pair_index++) {
+		for(j = 0; (j < COLS) && (j < width); j++) {
+			pixel_index = (i*height) + j;
+
 			// generate rgb value from 3 bytes
-			rgb_value  = image[i][j][0];
-			rgb_value |= image[i][j][1] << 8;
-			rgb_value |= image[i][j][2] << 16;
-			//rgb_value  = image[0][0][0];
-			//rgb_value = 0x0f5efa;
+			rgb_value  = image[3*pixel_index];
+			rgb_value |= image[3*pixel_index + 1] << 8;
+			rgb_value |= image[3*pixel_index + 2] << 16;
 
 			// naive palette-ing
-			init_extended_pair(pair_index, rgb_value, rgb_value);
-			color_set(pair_index, NULL);
+			// +1 is so that pair index `0` is not used
+			// (as it is reserved)
+			init_extended_pair(pixel_index+1, rgb_value, rgb_value);
+			color_set(pixel_index+1, NULL);
 			printw("a", i, j);
-			//addch(' ');
 		}
 	}
 
