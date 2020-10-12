@@ -1,5 +1,7 @@
 #include <ncurses.h>
 #include <stdlib.h>
+#include <locale.h>
+#include <wchar.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -8,9 +10,9 @@
 #include "stb_image_resize.h"
 
 /* TODO:
- *	- resize image before showing
- *	- allow scrolling
- *	- show image on command line (i.e. don't clear terminal)
+ *	- resize image before showing: Done
+ *	- allow scrolling: skip (difficult)
+ *	- show image on command line (i.e. don't clear terminal): skip
  *	- use half block to double vertical resolution
  *	- better palette handling
  *		- if rgb_value already in palette, use index
@@ -30,6 +32,7 @@ int main(int argc, char *argv[])
 	}
 
 	// ncurses initialization
+	setlocale(LC_ALL, "");		// allows weird characters
 	WINDOW *scr = initscr();
 	if(!has_colors()) {
 		endwin();
@@ -48,7 +51,7 @@ int main(int argc, char *argv[])
 	// determine new size
 	// change this to width = COLS, height follows, and allow scrolling
 	int width = COLS,
-	    height = LINES;
+	    height = 2*LINES;
 	if((orig_width * height) >= (width * orig_height))
 		height = (width * orig_height) / orig_width;
 	else
@@ -72,34 +75,44 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+
 int print_image(uint8_t *image, int width, int height) {
 	/* Iterate over `image`,
-	 *	image = 2d array (of size LINESxCOLS) of uint8_t triples
+	 *	image = array (of size LINESxCOLS) of uint8_t triples
 	 * Create color palette as you go through the pixels
 	 * Go through two rows at a time using half block elements
 	 */
 
-	unsigned int i, j, rgb_value, pixel_index, pair_index;
-	for(i = 0, pair_index = 1; (i < LINES) && (i < height); i++) {
-		move(i, 0);	// go back to 1st column
-		for(j = 0; (j < COLS) && (j < width); j++, pair_index++) {
-			pixel_index = (i*width) + j;
+	wchar_t chaxel[] = L"\x2580";	// half-block element
+
+	int i, j, top_pixel_index, bottom_pixel_index, pair_index;
+	unsigned int top_rgb_value, bottom_rgb_value;
+	for(i = 0, pair_index = 1; (i < height) && (i < 2*LINES); i += 2) {
+		move(i / 2, 0);
+		for(j = 0; (j < width) && (j < COLS); j++) {
+			top_pixel_index = (i*width) + j;
+			bottom_pixel_index = ((i+1)*width) + j;
 
 			// generate rgb value from 3 bytes
-			rgb_value  = image[3*pixel_index];
-			rgb_value |= image[3*pixel_index + 1] << 8;
-			rgb_value |= image[3*pixel_index + 2] << 16;
+			top_rgb_value  = image[3*top_pixel_index] << 16;
+			top_rgb_value |= image[3*top_pixel_index + 1] << 8;
+			top_rgb_value |= image[3*top_pixel_index + 2];
+
+			if(i+1 < height) {
+				bottom_rgb_value  = image[3*bottom_pixel_index] << 16;
+				bottom_rgb_value |= image[3*bottom_pixel_index + 1] << 8;
+				bottom_rgb_value |= image[3*bottom_pixel_index + 2];
+			} else
+				bottom_rgb_value = 0;
 
 			// naive palette-ing
-			// +1 is so that pair index `0` is not used
-			// (as it is reserved)
-			//init_extended_pair(pixel_index+1, rgb_value, rgb_value);
-			//color_set(pixel_index+1, NULL);
-			init_extended_pair(pair_index, rgb_value, rgb_value);
+			init_extended_pair(pair_index, top_rgb_value, bottom_rgb_value);
 			color_set(0, &pair_index);
-			printw("a", i, j);
+			pair_index++;
+
+			addwstr(chaxel);
 		}
 	}
 
-	return 0;
+	return pair_index;
 }
