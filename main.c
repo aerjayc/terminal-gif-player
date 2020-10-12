@@ -4,6 +4,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize.h"
+
 /* TODO:
  *	- resize image before showing
  *	- allow scrolling
@@ -38,17 +41,33 @@ int main(int argc, char *argv[])
 	clear();	// clean screen, cursor to (0,0)
 	start_color();
 
-	int width, height, channels;
-	uint8_t *image = stbi_load(argv[1], &width, &height, &channels, 3);
-	print_image(image, width, height);	//, channels);
+	int orig_width, orig_height, channels;
+	uint8_t *image = stbi_load(argv[1], &orig_width, &orig_height,
+				   &channels, 3);
+
+	// determine new size
+	// change this to width = COLS, height follows, and allow scrolling
+	int width = COLS,
+	    height = LINES;
+	if((orig_width * height) >= (width * orig_height))
+		height = (width * orig_height) / orig_width;
+	else
+		width = (height * orig_width) / orig_height;
+
+	uint8_t *resized_image = calloc(width*height*channels, sizeof(uint8_t));
+	stbir_resize_uint8(image, orig_width, orig_height, 0,
+			   resized_image, width, height, 0, channels);
+	print_image(resized_image, width, height);	//, channels);
 
 	refresh();
 	getch();
 	endwin();
 	printf("LINES = %i\tCOLS = %i\n", LINES, COLS);
 	printf("COLOR_PAIRS = %i\n", COLOR_PAIRS);
+	printf("width = %i, height = %i\n", width, height);
 
 	stbi_image_free(image);
+	stbi_image_free(resized_image);
 
 	return 0;
 }
