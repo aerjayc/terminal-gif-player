@@ -16,7 +16,7 @@
  *	- ~~create image data structure~~
  */
 
-int print_image(uint8_t *image, int height, int width);
+int print_image(uint8_t *image, int width, int height);
 
 
 int main(int argc, char *argv[])
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-int print_image(uint8_t *image, int height, int width) {
+int print_image(uint8_t *image, int width, int height) {
 	/* Iterate over `image`,
 	 *	image = 2d array (of size LINESxCOLS) of uint8_t triples
 	 * Create color palette as you go through the pixels
@@ -64,7 +64,7 @@ int print_image(uint8_t *image, int height, int width) {
 	for(i = 0, pair_index = 1; (i < LINES) && (i < height); i++) {
 		move(i, 0);	// go back to 1st column
 		for(j = 0; (j < COLS) && (j < width); j++, pair_index++) {
-			pixel_index = (i*height) + j;
+			pixel_index = (i*width) + j;
 
 			// generate rgb value from 3 bytes
 			rgb_value  = image[3*pixel_index];
