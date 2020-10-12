@@ -79,14 +79,24 @@ int main(int argc, char *argv[])
 		resized_images[i] = calloc(width*height*channels, sizeof(uint8_t));
 		stbir_resize_uint8(images[i], orig_width, orig_height, 0,
 				   resized_images[i], width, height, 0, channels);
+
+		// free image immediately
+		stbi_image_free(images[i]);
 	}
+	free(images);
 
 	i = 0;
 	for(i = 0; i < (argc-2); i++) {
+		clear();
 		print_image(resized_images[i], width, height);
 		refresh();
+
+		//free image immediately
+		stbi_image_free(resized_images[i]);
+
 		sleep_ms(atoi(argv[1]));
 	}
+	free(resized_images);
 	//getch();
 
 	/*
@@ -110,13 +120,6 @@ int main(int argc, char *argv[])
 	printf("LINES = %i\tCOLS = %i\n", LINES, COLS);
 	printf("COLOR_PAIRS = %i\n", COLOR_PAIRS);
 	printf("width = %i, height = %i\n", width, height);
-
-	for(i = 0; i < (argc-2); i++) {
-		stbi_image_free(images[i]);
-		stbi_image_free(resized_images[i]);
-	}
-	free(images);
-	free(resized_images);
 
 	return 0;
 }
