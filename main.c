@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <locale.h>
 #include <wchar.h>
+#include <time.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -21,13 +22,27 @@
  *	- ~~create image data structure~~
  */
 
+int sleep_ms(long ms) {
+	struct timespec ts;
+	int res;
+
+	ts.tv_sec = ms / 1000;
+	ts.tv_nsec = (ms % 1000) * 1000000;
+
+	do{
+		res = nanosleep(&ts, &ts);
+	} while(res);
+
+	return res;
+}
+
 int print_image(uint8_t *image, int width, int height);
 
 
 int main(int argc, char *argv[])
 {
-	if(argc < 2) {
-		printf("Usage:\n\t./a.out filename\n");
+	if(argc < 3) {
+		printf("Usage:\n\t./a.out delay_ms filename [filename1..]\n");
 		return 0;
 	}
 
@@ -44,12 +59,38 @@ int main(int argc, char *argv[])
 	clear();	// clean screen, cursor to (0,0)
 	start_color();
 
-	int orig_width, orig_height, channels;
-	uint8_t *image = stbi_load(argv[1], &orig_width, &orig_height,
-				   &channels, 3);
+	int orig_width, orig_height, width, height, channels;
+	uint8_t **images = calloc(argc - 1, sizeof(uint8_t *));
+	uint8_t **resized_images = calloc(argc - 1, sizeof(uint8_t *));
+	int i;
+	for(i = 0; i < (argc-2); i++) {
+		images[i] = stbi_load(argv[i+2], &orig_width, &orig_height, &channels, 3);
 
+		// determine new size
+		if(i == 0) {
+			width = COLS;
+			height = 2*LINES;
+			if((orig_width * height) >= (width * orig_height))
+				height = (width * orig_height) / orig_width;
+			else
+				width = (height * orig_width) / orig_height;
+		}
+
+		resized_images[i] = calloc(width*height*channels, sizeof(uint8_t));
+		stbir_resize_uint8(images[i], orig_width, orig_height, 0,
+				   resized_images[i], width, height, 0, channels);
+	}
+
+	i = 0;
+	for(i = 0; i < (argc-2); i++) {
+		print_image(resized_images[i], width, height);
+		refresh();
+		sleep_ms(atoi(argv[1]));
+	}
+	//getch();
+
+	/*
 	// determine new size
-	// change this to width = COLS, height follows, and allow scrolling
 	int width = COLS,
 	    height = 2*LINES;
 	if((orig_width * height) >= (width * orig_height))
@@ -64,13 +105,18 @@ int main(int argc, char *argv[])
 
 	refresh();
 	getch();
+	*/
 	endwin();
 	printf("LINES = %i\tCOLS = %i\n", LINES, COLS);
 	printf("COLOR_PAIRS = %i\n", COLOR_PAIRS);
 	printf("width = %i, height = %i\n", width, height);
 
-	stbi_image_free(image);
-	stbi_image_free(resized_image);
+	for(i = 0; i < (argc-2); i++) {
+		stbi_image_free(images[i]);
+		stbi_image_free(resized_images[i]);
+	}
+	free(images);
+	free(resized_images);
 
 	return 0;
 }
