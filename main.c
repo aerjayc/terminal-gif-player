@@ -21,6 +21,11 @@ int print_image(uint8_t *image, int height, int width);
 
 int main(int argc, char *argv[])
 {
+	if(argc < 2) {
+		printf("Usage:\n\t./a.out filename\n");
+		return 0;
+	}
+
 	// ncurses initialization
 	WINDOW *scr = initscr();
 	if(!has_colors()) {
@@ -41,12 +46,12 @@ int main(int argc, char *argv[])
 	getch();
 	endwin();
 	printf("LINES = %i\tCOLS = %i\n", LINES, COLS);
+	printf("COLOR_PAIRS = %i\n", COLOR_PAIRS);
 
 	stbi_image_free(image);
 
 	return 0;
 }
-
 
 int print_image(uint8_t *image, int height, int width) {
 	/* Iterate over `image`,
@@ -55,10 +60,10 @@ int print_image(uint8_t *image, int height, int width) {
 	 * Go through two rows at a time using half block elements
 	 */
 
-	unsigned int i, j, rgb_value, pixel_index;
-	for(i = 0, pixel_index = 1; (i < LINES) && (i < height); i++) {
+	unsigned int i, j, rgb_value, pixel_index, pair_index;
+	for(i = 0, pair_index = 1; (i < LINES) && (i < height); i++) {
 		move(i, 0);	// go back to 1st column
-		for(j = 0; (j < COLS) && (j < width); j++) {
+		for(j = 0; (j < COLS) && (j < width); j++, pair_index++) {
 			pixel_index = (i*height) + j;
 
 			// generate rgb value from 3 bytes
@@ -69,8 +74,10 @@ int print_image(uint8_t *image, int height, int width) {
 			// naive palette-ing
 			// +1 is so that pair index `0` is not used
 			// (as it is reserved)
-			init_extended_pair(pixel_index+1, rgb_value, rgb_value);
-			color_set(pixel_index+1, NULL);
+			//init_extended_pair(pixel_index+1, rgb_value, rgb_value);
+			//color_set(pixel_index+1, NULL);
+			init_extended_pair(pair_index, rgb_value, rgb_value);
+			color_set(0, &pair_index);
 			printw("a", i, j);
 		}
 	}
