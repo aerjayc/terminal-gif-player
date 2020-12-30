@@ -22,27 +22,14 @@
  *	- ~~create image data structure~~
  */
 
-int sleep_ms(long ms) {
-	struct timespec ts;
-	int res;
-
-	ts.tv_sec = ms / 1000;
-	ts.tv_nsec = (ms % 1000) * 1000000;
-
-	do{
-		res = nanosleep(&ts, &ts);
-	} while(res);
-
-	return res;
-}
-
+int sleep_ms(long ms);
 int print_image(uint8_t *image, int width, int height);
-
+int loop_over_frames(char **fnames, int num_images, int width, int height, int delay);
 
 int main(int argc, char *argv[])
 {
 	if(argc < 3) {
-		printf("Usage:\n\t./a.out delay_ms filename [filename1..]\n");
+		printf("Usage: ./a.out delay_ms filename [filename1..]\n");
 		return 0;
 	}
 
@@ -59,67 +46,12 @@ int main(int argc, char *argv[])
 	clear();	// clean screen, cursor to (0,0)
 	start_color();
 
-	int orig_width, orig_height, width, height, channels;
-	uint8_t **images = calloc(argc - 1, sizeof(uint8_t *));
-	uint8_t **resized_images = calloc(argc - 1, sizeof(uint8_t *));
-	int i;
-	for(i = 0; i < (argc-2); i++) {
-		images[i] = stbi_load(argv[i+2], &orig_width, &orig_height, &channels, 3);
+	loop_over_frames(&(argv[2]), argc - 2, -1, -1, atoi(argv[1]));
 
-		// determine new size
-		if(i == 0) {
-			width = COLS;
-			height = 2*LINES;
-			if((orig_width * height) >= (width * orig_height))
-				height = (width * orig_height) / orig_width;
-			else
-				width = (height * orig_width) / orig_height;
-		}
-
-		resized_images[i] = calloc(width*height*channels, sizeof(uint8_t));
-		stbir_resize_uint8(images[i], orig_width, orig_height, 0,
-				   resized_images[i], width, height, 0, channels);
-
-		// free image immediately
-		stbi_image_free(images[i]);
-	}
-	free(images);
-
-	i = 0;
-	for(i = 0; i < (argc-2); i++) {
-		clear();
-		print_image(resized_images[i], width, height);
-		refresh();
-
-		//free image immediately
-		stbi_image_free(resized_images[i]);
-
-		sleep_ms(atoi(argv[1]));
-	}
-	free(resized_images);
-	//getch();
-
-	/*
-	// determine new size
-	int width = COLS,
-	    height = 2*LINES;
-	if((orig_width * height) >= (width * orig_height))
-		height = (width * orig_height) / orig_width;
-	else
-		width = (height * orig_width) / orig_height;
-
-	uint8_t *resized_image = calloc(width*height*channels, sizeof(uint8_t));
-	stbir_resize_uint8(image, orig_width, orig_height, 0,
-			   resized_image, width, height, 0, channels);
-	print_image(resized_image, width, height);	//, channels);
-
-	refresh();
-	getch();
-	*/
 	endwin();
 	printf("LINES = %i\tCOLS = %i\n", LINES, COLS);
 	printf("COLOR_PAIRS = %i\n", COLOR_PAIRS);
-	printf("width = %i, height = %i\n", width, height);
+	//printf("width = %i, height = %i\n", width, height);
 
 	return 0;
 }
@@ -164,4 +96,56 @@ int print_image(uint8_t *image, int width, int height) {
 	}
 
 	return pair_index;
+}
+
+int loop_over_frames(char **fnames, int num_images, int width, int height, int delay) {
+	if(width <= 0)
+		width = COLS;
+	if(height <= 0)
+		height = 2*LINES;
+
+	uint8_t *image, *resized_image;
+	int orig_width, orig_height, channels;
+	int i;
+	for(i = 0; i < num_images; i++) {
+		image = stbi_load(fnames[i], &orig_width, &orig_height, &channels, 3);
+
+		// determine new size
+		if((orig_width * height) >= (width * orig_height))
+			height = (width * orig_height) / orig_width;
+		else
+			width = (height * orig_width) / orig_height;
+
+		resized_image = calloc(width*height*channels, sizeof(uint8_t));
+		stbir_resize_uint8(image, orig_width, orig_height, 0,
+				   resized_image, width, height, 0, channels);
+
+		// free image immediately
+		stbi_image_free(image);
+
+		clear();
+		print_image(resized_image, width, height);
+		refresh();
+
+		//free resized_image immediately
+		stbi_image_free(resized_image);
+
+		sleep_ms(delay);
+	}
+
+	return i + 1;
+}
+
+int sleep_ms(long ms) {
+	struct timespec ts;
+	int res;
+
+	ts.tv_sec = ms / 1000;
+	ts.tv_nsec = (ms % 1000) * 1000000;
+
+	do{
+		res = nanosleep(&ts, &ts);
+	} while(res);
+
+	return res;
 }
