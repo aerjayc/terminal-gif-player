@@ -3,6 +3,8 @@
 #include <locale.h>
 #include <wchar.h>
 #include <time.h>
+#include <dirent.h>
+#include <stdio.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -25,11 +27,16 @@
 int sleep_ms(long ms);
 int print_image(uint8_t *image, int width, int height);
 int loop_over_frames(char **fnames, int num_images, int width, int height, int delay);
+char **list_files(const char *directory, const char *extension, int *num_names);
+
+static int cmpstringp(const void *p1, const void *p2) {
+    return strcmp(* (char * const *) p1, * (char * const *) p2);
+}
 
 int main(int argc, char *argv[])
 {
 	if(argc < 3) {
-		printf("Usage: ./a.out delay_ms filename [filename1..]\n");
+		printf("Usage: ./a.out delay_ms DIRECTORY\n");
 		return 0;
 	}
 
@@ -46,12 +53,21 @@ int main(int argc, char *argv[])
 	clear();	// clean screen, cursor to (0,0)
 	start_color();
 
-	loop_over_frames(&(argv[2]), argc - 2, -1, -1, atoi(argv[1]));
+	int n;
+	char **fnames = list_files(argv[2], ".jpg", &n);
+	qsort(fnames, n, sizeof(fnames[0]), cmpstringp);
+	loop_over_frames(fnames, n, -1, -1, atoi(argv[1]));
 
 	endwin();
 	printf("LINES = %i\tCOLS = %i\n", LINES, COLS);
 	printf("COLOR_PAIRS = %i\n", COLOR_PAIRS);
 	//printf("width = %i, height = %i\n", width, height);
+
+	int i;
+	for(i = 0; i < n; i++) {
+		free(fnames[i]);
+	}
+	free(fnames);
 
 	return 0;
 }
@@ -111,10 +127,12 @@ int loop_over_frames(char **fnames, int num_images, int width, int height, int d
 		image = stbi_load(fnames[i], &orig_width, &orig_height, &channels, 3);
 
 		// determine new size
-		if((orig_width * height) >= (width * orig_height))
-			height = (width * orig_height) / orig_width;
-		else
-			width = (height * orig_width) / orig_height;
+		if(i == 0) {
+			if((orig_width * height) >= (width * orig_height))
+				height = (width * orig_height) / orig_width;
+			else
+				width = (height * orig_width) / orig_height;
+		}
 
 		resized_image = calloc(width*height*channels, sizeof(uint8_t));
 		stbir_resize_uint8(image, orig_width, orig_height, 0,
@@ -134,6 +152,41 @@ int loop_over_frames(char **fnames, int num_images, int width, int height, int d
 	}
 
 	return i + 1;
+}
+
+// based on https://stackoverflow.com/a/4204758 and https://stackoverflow.com/a/17683417
+char **list_files(const char *directory, const char *extension, int *num_names) {
+	char **filenames = calloc(1, sizeof(char *));
+	DIR *d;
+	struct dirent *dir;
+	char *filename;
+	char *file_ext;
+	int i = 0;
+	d = opendir(directory);
+	if(d) {
+		for(i = 0; (dir = readdir(d)) != NULL;) {
+			if(dir->d_type == DT_REG) {	// if regular file
+				filename = dir->d_name;
+
+				// check extension
+				if(extension) {
+					file_ext = strrchr(filename, extension[0]);
+					if((file_ext == NULL) || strcmp(file_ext, extension))
+						continue;
+				}
+
+				if(i > 0)
+					filenames = reallocarray(filenames, i+1, sizeof(char *));
+				filenames[i] = calloc(strlen(filename) + 1, sizeof(char));
+				strcpy(filenames[i], filename);
+				i++;
+			}
+		}
+		closedir(d);
+	}
+	*num_names = i;
+
+	return filenames;
 }
 
 int sleep_ms(long ms) {
